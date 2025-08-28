@@ -13,22 +13,10 @@ import io
 import subprocess
 from nlp_processor import EmailNLPProcessor
 
-try:
-    import easyocr
-    EASYOCR_AVAILABLE = True
-except ImportError:
-    EASYOCR_AVAILABLE = False
-
-try:
-    from pdf2image import convert_from_bytes
-    PDF2IMAGE_AVAILABLE = True
-except ImportError:
-    PDF2IMAGE_AVAILABLE = False
-
 load_dotenv()
 
 app = FastAPI(
-    title="EmailFilter API",
+    title="ClassifierEmail API",
     description="API para classificação inteligente de emails com NLP e IA",
     version="2.0.0"
 )
@@ -133,72 +121,6 @@ def call_ai_api(content: str, nlp_data: Dict) -> Dict[str, str]:
             "motivo": f"Erro na API: {str(e)}",
             "resposta_sugerida": "Obrigado pelo contato."
         }
-
-@app.get("/")
-def read_root():
-    return {
-        "mensagem": "EmailFilter API funcionando!",
-        "versao": "2.0.0",
-        "recursos": [
-            "Classificação de emails com NLP",
-            "Processamento de PDF e TXT",
-            "Geração de respostas automáticas",
-            "Autenticação por API key"
-        ]
-    }
-
-@app.get("/system-status")
-def system_status():
-    tesseract_status = is_tesseract_available()
-    tesseract_info = "Não instalado"
-    
-    if tesseract_status:
-        try:
-            result = subprocess.run(['tesseract', '--version'], 
-                                  capture_output=True, text=True, timeout=5)
-            tesseract_info = result.stdout.split('\n')[0] if result.stdout else "Versão não detectada"
-        except:
-            tesseract_info = "Instalado mas com problemas"
-    
-    nltk_status = True
-    nltk_info = "Carregado com sucesso"
-    try:
-        import nltk
-        nltk.data.find('corpora/stopwords')
-        nltk.data.find('stemmers/rslp')
-    except:
-        nltk_status = False
-        nltk_info = "Dados NLTK não encontrados"
-    
-    env_vars = {
-        "SECRET_API_KEY": "✅ Configurado" if os.getenv("SECRET_API_KEY") else "❌ Não configurado",
-        "OPENROUTER_API_KEY": "✅ Configurado" if os.getenv("OPENROUTER_API_KEY") else "❌ Não configurado",
-        "MODEL_AI_API": os.getenv("MODEL_AI_API", "❌ Não configurado"),
-        "OPENROUNTER_URL": os.getenv("OPENROUNTER_URL", "❌ Não configurado")
-    }
-    
-    return {
-        "sistema": "✅ Online",
-        "dependencias": {
-            "tesseract_ocr": {
-                "status": "✅ Disponível" if tesseract_status else "⚠️ Não disponível",
-                "info": tesseract_info,
-                "impacto": "OCR para PDFs escaneados não funcionará" if not tesseract_status else "Suporte completo a PDF"
-            },
-            "nltk": {
-                "status": "✅ Disponível" if nltk_status else "❌ Problema",
-                "info": nltk_info
-            },
-            "pdfplumber": "✅ Disponível",
-            "fastapi": "✅ Disponível"
-        },
-        "configuracao": env_vars,
-        "metodos_pdf": [
-            "Extração de texto padrão (sempre disponível)",
-            "Extração alternativa por caracteres",
-            "OCR com Tesseract (se instalado)"
-        ]
-    }
 
 @app.post("/classemail", response_model=EmailResponse)
 def analise_email(email: EmailDTO, x_api_key: str = Header(...)):
@@ -342,20 +264,3 @@ async def analise_email_txt(x_api_key: str = Header(...), file: UploadFile = Fil
         nlp_features=nlp_data['features'],
         quality_score=quality_score
     )
-
-@app.post("/upload", response_model=EmailResponse)
-async def upload_file(x_api_key: str = Header(...), file: UploadFile = File(...)):
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Chave de autenticação inválida")
-    
-    filename = file.filename.lower()
-    
-    if filename.endswith('.pdf'):
-        return await analise_email_pdf(x_api_key, file)
-    elif filename.endswith('.txt'):
-        return await analise_email_txt(x_api_key, file)
-    else:
-        raise HTTPException(
-            status_code=400, 
-            detail="Tipo de arquivo não suportado. Use PDF ou TXT."
-        )
