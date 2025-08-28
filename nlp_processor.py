@@ -10,6 +10,7 @@ try:
     nltk.data.find('stemmers/rslp')
 except LookupError:
     nltk.download('punkt')
+    nltk.download('punkt_tab')
     nltk.download('stopwords')
     nltk.download('averaged_perceptron_tagger')
     nltk.download('rslp')
